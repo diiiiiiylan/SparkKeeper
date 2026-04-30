@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+debug_*.png
+calibrate.png
+douyin.png
+before.png
+friends.png
