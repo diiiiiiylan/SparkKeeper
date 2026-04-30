@@ -80,12 +80,25 @@ def setup():
     config = load_config()
 
     print("=" * 50)
-    print("  SparkKeeper 首次校准")
+    print("  SparkKeeper 首次校准（只需校准一次）")
     print("=" * 50)
-    print("\n请先打开抖音，确保能看到主界面。")
-    print("接下来会让你把鼠标放到 4 个位置，每次放好后按回车。\n")
 
-    input("准备好了按回车开始...")
+    # 先问好友数量
+    while True:
+        count = input("\n  你要续几个好友的火花？(直接回车默认6): ").strip()
+        if not count:
+            config["top_friends_count"] = 6
+            break
+        if count.isdigit() and int(count) > 0:
+            config["top_friends_count"] = int(count)
+            break
+        print("  请输入一个正整数")
+
+    print(f"\n  好，续 {config['top_friends_count']} 个好友。")
+    print("  请先打开抖音，确保能看到主界面。")
+    print("  接下来把鼠标放到指定位置，放好后按回车。\n")
+
+    input("  准备好了按回车开始...")
 
     coords = {}
     coords["private_msg_icon"] = wait_for_click("鼠标放到右上角「私信」图标上")
@@ -104,7 +117,6 @@ def setup():
     coords["input_box"] = wait_for_click("鼠标放到聊天输入框上")
     coords["close_chat"] = wait_for_click("鼠标放到关闭会话按钮上")
 
-    # 计算好友间距
     friend_height = coords["second_friend"][1] - coords["first_friend"][1]
     coords["friend_height"] = friend_height
 
