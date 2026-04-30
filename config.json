@@ -3,5 +3,13 @@
     "top_friends_count": 6,
     "send_hour": 8,
     "send_minute": 0,
-    "douyin_path": "D:\\Program Files (x86)\\ByteDance\\douyin\\Douyin.exe"
+    "douyin_path": "D:\\Program Files (x86)\\ByteDance\\douyin\\Douyin.exe",
+    "coords": {
+        "private_msg_icon": [3231, 103],
+        "first_friend": [3349, 298],
+        "second_friend": [3349, 400],
+        "input_box": [3139, 1141],
+        "close_chat": [3381, 199],
+        "friend_height": 102
+    }
 }

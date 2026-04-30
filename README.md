@@ -12,48 +12,45 @@
 pip install pyautogui pywinauto pyperclip apscheduler
 ```
 
-## 使用
+## 快速开始
 
-1. 打开抖音 Windows 客户端，登录账号
-2. 把要续火花的好友在私信列表中**置顶**
-3. 编辑 `config.json` 配置参数
-4. 测试运行：`python douyin_spark.py --now`
-5. 启动定时任务：`python douyin_spark.py`
+### 1. 准备工作
+- 打开抖音 Windows 客户端并登录
+- 把要续火花的好友在私信列表中**置顶**
+
+### 2. 首次校准
+```bash
+python douyin_spark.py --setup
+```
+按提示把鼠标放到 4 个位置（私信图标、好友、输入框、关闭按钮），每次放好按回车。坐标会自动保存到 `config.json`。
+
+### 3. 测试
+```bash
+python douyin_spark.py --now
+```
+运行时不要动鼠标，观察是否正常发送。
+
+### 4. 启动定时任务
+```bash
+python douyin_spark.py
+```
+默认每天早上 8:00 自动执行。
 
 ## 配置
 
 编辑 `config.json`：
 
-```json
-{
-    "message": "🔥",
-    "top_friends_count": 6,
-    "send_hour": 8,
-    "send_minute": 0,
-    "douyin_path": "D:\\Program Files (x86)\\ByteDance\\douyin\\Douyin.exe"
-}
-```
-
-| 字段 | 说明 |
-|------|------|
-| message | 发送的消息内容 |
-| top_friends_count | 置顶好友数量 |
-| send_hour / send_minute | 每天几点执行 |
-| douyin_path | 抖音安装路径 |
-
-## 坐标校准
-
-脚本中的点击坐标基于特定屏幕分辨率。如果点击位置不准，运行坐标工具查看实际位置：
-
-```bash
-python -c "import pyautogui,time;[print(pyautogui.position()) or time.sleep(1) for _ in range(30)]"
-```
-
-然后修改 `douyin_spark.py` 中对应的坐标值。
+| 字段 | 说明 | 默认值 |
+|------|------|--------|
+| message | 发送的消息内容 | 🔥 |
+| top_friends_count | 置顶好友数量 | 6 |
+| send_hour / send_minute | 每天几点执行 | 8:00 |
+| douyin_path | 抖音安装路径（留空则需手动打开抖音） | - |
+| coords | 校准坐标（--setup 自动生成） | - |
 
 ## 注意事项
 
 - 运行时不要移动鼠标，程序需要控制鼠标操作
 - 鼠标移到屏幕左上角可紧急中断（pyautogui failsafe）
-- 抖音客户端更新后可能需要重新校准坐标
-- 建议先用 `--now` 测试确认无误后再启动定时任务
+- 更换显示器或调整分辨率后需要重新 `--setup` 校准
+- 抖音客户端更新界面后可能需要重新校准

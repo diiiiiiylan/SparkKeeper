@@ -1,14 +1,14 @@
 """
-抖音 Windows 客户端 - 自动续火花
-直接点击私信面板中置顶的好友发消息，无需搜索。
+SparkKeeper - 抖音 Windows 客户端自动续火花
+直接点击私信面板中置顶的好友发消息，保持火花不灭。
 
 使用前：
   1. pip install pyautogui pywinauto pyperclip apscheduler
   2. 确保抖音 Windows 客户端已安装并登录
-  3. 把要续火花的好友在私信列表里置顶
-  4. 编辑 config.json 调整参数
-  5. python douyin_spark.py --now  测试一次
-  6. python douyin_spark.py        启动定时任务
+  3. 把要续火花的好友在私信列表中置顶
+  4. 首次运行: python douyin_spark.py --setup  (校准坐标)
+  5. 测试运行: python douyin_spark.py --now
+  6. 启动定时: python douyin_spark.py
 """
 
 import json
@@ -42,18 +42,86 @@ log = logging.getLogger(__name__)
 
 # ==================== 配置 ====================
 
+DEFAULT_CONFIG = {
+    "message": "🔥",
+    "top_friends_count": 6,
+    "send_hour": 8,
+    "send_minute": 0,
+    "douyin_path": "",
+    "coords": None,
+}
+
+
 def load_config():
     if not CONFIG_PATH.exists():
-        default = {
-            "message": "早上好",
-            "top_friends_count": 6,
-            "send_hour": 8,
-            "send_minute": 0,
-            "douyin_path": r"D:\Program Files (x86)\ByteDance\douyin\Douyin.exe",
-        }
-        CONFIG_PATH.write_text(json.dumps(default, ensure_ascii=False, indent=4), encoding="utf-8")
+        save_config(DEFAULT_CONFIG)
         log.info(f"已生成默认配置: {CONFIG_PATH}")
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def save_config(config):
+    CONFIG_PATH.write_text(json.dumps(config, ensure_ascii=False, indent=4), encoding="utf-8")
+
+
+# ==================== 校准 ====================
+
+def wait_for_click(prompt_text):
+    """提示用户把鼠标放到指定位置，按回车记录坐标"""
+    print(f"\n  👉 {prompt_text}")
+    print("     把鼠标放到对应位置，然后按回车...")
+    input()
+    pos = pyautogui.position()
+    print(f"     记录坐标: ({pos.x}, {pos.y})")
+    return [pos.x, pos.y]
+
+
+def setup():
+    """交互式校准坐标"""
+    config = load_config()
+
+    print("=" * 50)
+    print("  SparkKeeper 首次校准")
+    print("=" * 50)
+    print("\n请先打开抖音，确保能看到主界面。")
+    print("接下来会让你把鼠标放到 4 个位置，每次放好后按回车。\n")
+
+    input("准备好了按回车开始...")
+
+    coords = {}
+    coords["private_msg_icon"] = wait_for_click("鼠标放到右上角「私信」图标上")
+
+    print("\n  现在请点开私信面板...")
+    pyautogui.click(*coords["private_msg_icon"])
+    time.sleep(2)
+
+    coords["first_friend"] = wait_for_click("鼠标放到第 1 个置顶好友上")
+    coords["second_friend"] = wait_for_click("鼠标放到第 2 个置顶好友上")
+
+    print("\n  现在请点开任意一个好友的聊天...")
+    pyautogui.click(*coords["first_friend"])
+    time.sleep(1.5)
+
+    coords["input_box"] = wait_for_click("鼠标放到聊天输入框上")
+    coords["close_chat"] = wait_for_click("鼠标放到关闭会话按钮上")
+
+    # 计算好友间距
+    friend_height = coords["second_friend"][1] - coords["first_friend"][1]
+    coords["friend_height"] = friend_height
+
+    config["coords"] = coords
+    save_config(config)
+
+    print("\n" + "=" * 50)
+    print("  校准完成！坐标已保存到 config.json")
+    print(f"  好友间距: {friend_height}px")
+    print("=" * 50)
+    print("\n现在可以运行: python douyin_spark.py --now")
+
+    # 如果没有设置抖音路径，提示设置
+    if not config.get("douyin_path"):
+        print("\n提示: config.json 中的 douyin_path 为空")
+        print("请填入抖音安装路径，例如:")
+        print('  "douyin_path": "D:\\\\Program Files (x86)\\\\ByteDance\\\\douyin\\\\Douyin.exe"')
 
 
 # ==================== 窗口管理 ====================
@@ -74,6 +142,8 @@ def find_douyin_window():
 def activate_douyin(douyin_path):
     app = find_douyin_window()
     if app is None:
+        if not douyin_path:
+            raise RuntimeError("抖音未运行，且 config.json 中未设置 douyin_path")
         log.info("抖音未运行，正在启动...")
         subprocess.Popen(douyin_path)
         time.sleep(5)
@@ -103,30 +173,22 @@ def type_chinese(text):
     time.sleep(0.3)
 
 
-def open_private_messages():
-    """点击右上角私信图标"""
-    pyautogui.click(3231, 103)
+def open_private_messages(coords):
+    pyautogui.click(*coords["private_msg_icon"])
     time.sleep(2)
     log.info("已打开私信面板")
 
 
-def click_friend_by_index(index):
-    """点击私信列表中第 index 个置顶好友 (从0开始)
-    好友列表从搜索框下方开始，每个好友大约占 72px 高度
-    """
-    base_x = 3349
-    base_y = 298
-    friend_height = 100
-
-    y = base_y + index * friend_height
-    pyautogui.click(base_x, y)
+def click_friend_by_index(coords, index):
+    x = coords["first_friend"][0]
+    y = coords["first_friend"][1] + index * coords["friend_height"]
+    pyautogui.click(x, y)
     time.sleep(1.5)
     log.info(f"已点击第 {index + 1} 个好友")
 
 
-def send_message(text):
-    """在聊天框输入消息并发送"""
-    pyautogui.click(3139, 1141)
+def send_message(coords, text):
+    pyautogui.click(*coords["input_box"])
     time.sleep(0.5)
     type_chinese(text)
     time.sleep(0.3)
@@ -135,9 +197,8 @@ def send_message(text):
     log.info(f"已发送: {text}")
 
 
-def close_chat():
-    """关闭聊天框，保留好友栏"""
-    pyautogui.click(3381, 199)
+def close_chat(coords):
+    pyautogui.click(*coords["close_chat"])
     time.sleep(1)
     log.info("已关闭聊天框")
 
@@ -146,35 +207,40 @@ def close_chat():
 
 def run_task():
     config = load_config()
-    message = config.get("message", "早上好")
+    coords = config.get("coords")
+    if not coords:
+        print("错误: 未校准坐标，请先运行: python douyin_spark.py --setup")
+        sys.exit(1)
+
+    message = config.get("message", "🔥")
     count = config.get("top_friends_count", 6)
     log.info("===== 开始续火花任务 =====")
 
     try:
-        win = activate_douyin(config["douyin_path"])
+        win = activate_douyin(config.get("douyin_path", ""))
         time.sleep(1)
 
-        open_private_messages()
+        open_private_messages(coords)
 
         success = 0
         for i in range(count):
             try:
-                click_friend_by_index(i)
-                send_message(message)
-                close_chat()
+                click_friend_by_index(coords, i)
+                send_message(coords, message)
+                close_chat(coords)
                 success += 1
             except Exception as e:
                 log.error(f"第 {i + 1} 个好友失败: {e}")
                 try:
-                    close_chat()
+                    close_chat(coords)
                 except Exception:
                     pass
             time.sleep(0.5)
 
         log.info(f"完成: {success}/{count} 个好友")
 
-        # 关闭私信面板（点击私信图标收起）
-        pyautogui.click(3231, 103)
+        # 收起私信面板
+        pyautogui.click(*coords["private_msg_icon"])
         time.sleep(0.5)
 
     except Exception as e:
@@ -184,11 +250,20 @@ def run_task():
 # ==================== 入口 ====================
 
 if __name__ == "__main__":
+    if "--setup" in sys.argv:
+        setup()
+        sys.exit(0)
+
     config = load_config()
+
+    if not config.get("coords"):
+        print("首次使用请先校准: python douyin_spark.py --setup")
+        sys.exit(1)
+
     count = config.get("top_friends_count", 6)
-    print("抖音 Windows 客户端 - 自动续火花")
+    print("SparkKeeper - 抖音自动续火花")
     print(f"置顶好友数: {count}")
-    print(f"发送内容: {config.get('message', '早上好')}")
+    print(f"发送内容: {config.get('message', '🔥')}")
     print(f"每天 {config['send_hour']:02d}:{config['send_minute']:02d} 自动执行")
     print("Ctrl+C 退出\n")
 
