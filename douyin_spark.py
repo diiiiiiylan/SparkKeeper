@@ -22,9 +22,11 @@ import os
 import glob
 import time
 import ctypes
+import random
 import logging
 import subprocess
-from datetime import datetime, date
+import winreg
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import pyautogui
@@ -35,6 +37,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 SCRIPT_DIR = Path(__file__).parent
 CONFIG_PATH = SCRIPT_DIR / "config.json"
 LAST_RUN_PATH = SCRIPT_DIR / ".last_run"
+STATS_PATH = SCRIPT_DIR / "stats.json"
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.3
@@ -54,6 +57,8 @@ log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
     "message": "🔥",
+    "messages": ["🔥", "早安", "续火花啦", "☀️", "今天也要开心", "👋"],
+    "use_random_message": True,
     "top_friends_count": 6,
     "send_hour": 8,
     "send_minute": 0,
@@ -137,6 +142,147 @@ def missed_today(config):
         hour=config["send_hour"], minute=config["send_minute"], second=0
     )
     return now > scheduled
+
+
+# ==================== 统计 ====================
+
+def load_stats():
+    if STATS_PATH.exists():
+        try:
+            return json.loads(STATS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"history": [], "total_sent": 0, "total_failed": 0}
+
+
+def save_stats(stats):
+    STATS_PATH.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def record_stats(success_count, fail_count):
+    stats = load_stats()
+    today = date.today().isoformat()
+    stats["history"].append({
+        "date": today,
+        "success": success_count,
+        "failed": fail_count,
+    })
+    # 只保留最近 90 天
+    stats["history"] = stats["history"][-90:]
+    stats["total_sent"] = stats.get("total_sent", 0) + success_count
+    stats["total_failed"] = stats.get("total_failed", 0) + fail_count
+    save_stats(stats)
+
+
+def get_streak(stats):
+    """计算连续打卡天数"""
+    dates = {item["date"] for item in stats["history"] if item["success"] > 0}
+    streak = 0
+    d = date.today()
+    while d.isoformat() in dates:
+        streak += 1
+        d -= timedelta(days=1)
+    return streak
+
+
+def show_stats():
+    stats = load_stats()
+    streak = get_streak(stats)
+    history = stats["history"]
+
+    print("=" * 50)
+    print("  🔥 SparkKeeper 火花统计")
+    print("=" * 50)
+    print(f"\n  连续打卡: {streak} 天")
+    print(f"  累计发送: {stats.get('total_sent', 0)} 条")
+    print(f"  累计失败: {stats.get('total_failed', 0)} 条")
+    print(f"  记录天数: {len(history)} 天")
+
+    # 最近 30 天打卡日历
+    print("\n  最近 30 天:")
+    today = date.today()
+    dates_ok = {item["date"] for item in history if item["success"] > 0}
+    dates_fail = {item["date"] for item in history if item["success"] == 0 and item["failed"] > 0}
+
+    line1 = "  "
+    line2 = "  "
+    for i in range(29, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        if d in dates_ok:
+            line1 += "🔥"
+        elif d in dates_fail:
+            line1 += "❌"
+        else:
+            line1 += "⬜"
+
+    print(line1)
+    print(f"  {'30天前':<20}{'今天':>10}")
+
+    # 最近 7 天明细
+    print("\n  最近 7 天明细:")
+    recent = history[-7:] if len(history) >= 7 else history
+    for item in recent:
+        status = "✓" if item["success"] > 0 else "✗"
+        print(f"    {item['date']}  {status}  成功{item['success']} 失败{item['failed']}")
+
+    print()
+
+
+# ==================== 开机自启动 ====================
+
+def setup_autostart():
+    """添加到 Windows 开机启动"""
+    python_path = sys.executable
+    script_path = str(SCRIPT_DIR / "douyin_spark.py")
+    cmd = f'"{python_path}" "{script_path}"'
+
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0, winreg.KEY_SET_VALUE,
+        )
+        winreg.SetValueEx(key, "SparkKeeper", 0, winreg.REG_SZ, cmd)
+        winreg.CloseKey(key)
+        print("✓ 已添加到开机启动项")
+        print(f"  命令: {cmd}")
+        print("  取消: python douyin_spark.py --no-autostart")
+    except Exception as e:
+        print(f"✗ 添加失败: {e}")
+
+
+def remove_autostart():
+    """从 Windows 开机启动中移除"""
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            0, winreg.KEY_SET_VALUE,
+        )
+        winreg.DeleteValue(key, "SparkKeeper")
+        winreg.CloseKey(key)
+        print("✓ 已从开机启动项移除")
+    except FileNotFoundError:
+        print("  SparkKeeper 不在开机启动项中")
+    except Exception as e:
+        print(f"✗ 移除失败: {e}")
+
+
+# ==================== 火花倒计时 ====================
+
+def check_spark_countdown():
+    """检查距离火花熄灭还有多久，快到时弹通知"""
+    last = get_last_run_date()
+    if not last:
+        return
+    last_date = date.fromisoformat(last)
+    today = date.today()
+    days_since = (today - last_date).days
+
+    if days_since >= 1:
+        hours_left = max(0, 24 - (datetime.now().hour - 8))
+        if hours_left <= 4 and days_since >= 1:
+            notify("SparkKeeper ⚠️", f"火花快熄灭了！距上次续火花已过 {days_since} 天")
 
 
 # ==================== 校准 ====================
@@ -314,7 +460,12 @@ def run_task():
         notify("SparkKeeper", "未校准，请运行 --setup")
         return
 
-    message = config.get("message", "🔥")
+    # 随机消息 or 固定消息
+    if config.get("use_random_message") and config.get("messages"):
+        message = random.choice(config["messages"])
+    else:
+        message = config.get("message", "🔥")
+
     count = config.get("top_friends_count", 6)
     log.info("===== 开始续火花任务 =====")
 
@@ -326,9 +477,14 @@ def run_task():
         success = 0
         failed = []
         for i in range(count):
+            # 每个好友可以发不同消息
+            if config.get("use_random_message") and config.get("messages"):
+                msg = random.choice(config["messages"])
+            else:
+                msg = message
             try:
                 click_friend_by_index(coords, i)
-                send_message(coords, message)
+                send_message(coords, msg)
                 close_chat(coords)
                 success += 1
             except Exception as e:
@@ -346,8 +502,9 @@ def run_task():
         pyautogui.click(*coords["private_msg_icon"])
         time.sleep(0.5)
 
-        # 记录今天已运行
+        # 记录
         save_last_run_date()
+        record_stats(success, len(failed))
 
         # 失败通知
         if failed:
@@ -365,6 +522,18 @@ if __name__ == "__main__":
         setup()
         sys.exit(0)
 
+    if "--stats" in sys.argv:
+        show_stats()
+        sys.exit(0)
+
+    if "--autostart" in sys.argv:
+        setup_autostart()
+        sys.exit(0)
+
+    if "--no-autostart" in sys.argv:
+        remove_autostart()
+        sys.exit(0)
+
     config = load_config()
 
     if not config.get("coords"):
@@ -372,17 +541,25 @@ if __name__ == "__main__":
         sys.exit(1)
 
     count = config.get("top_friends_count", 6)
+    streak = get_streak(load_stats())
     print("SparkKeeper - 抖音自动续火花 🔥")
     print(f"  好友数: {count}")
-    print(f"  消息: {config.get('message', '🔥')}")
+    if config.get("use_random_message"):
+        print(f"  消息池: {config.get('messages', ['🔥'])}")
+    else:
+        print(f"  消息: {config.get('message', '🔥')}")
     print(f"  定时: 每天 {config['send_hour']:02d}:{config['send_minute']:02d}")
+    print(f"  连续打卡: {streak} 天 🔥")
     print("  Ctrl+C 退出\n")
 
     if "--now" in sys.argv:
         run_task()
         sys.exit(0)
 
-    # 启动时检查是否错过了今天的任务（休眠补发）
+    # 启动时检查火花倒计时
+    check_spark_countdown()
+
+    # 休眠补发
     if missed_today(config):
         log.info("检测到今天的任务被错过（可能因休眠），立即补发")
         run_task()
@@ -395,12 +572,19 @@ if __name__ == "__main__":
         minute=config["send_minute"],
         id="douyin_spark",
     )
-    # 每 10 分钟检查一次是否错过任务（应对休眠唤醒）
+    # 每 10 分钟检查一次是否错过任务
     scheduler.add_job(
         lambda: run_task() if missed_today(load_config()) else None,
         "interval",
         minutes=10,
         id="missed_check",
+    )
+    # 每小时检查火花倒计时
+    scheduler.add_job(
+        check_spark_countdown,
+        "interval",
+        hours=1,
+        id="countdown_check",
     )
     log.info(f"定时任务已启动，每天 {config['send_hour']:02d}:{config['send_minute']:02d} 执行")
     scheduler.start()

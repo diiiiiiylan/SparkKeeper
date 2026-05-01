@@ -5,11 +5,26 @@
     "send_minute": 0,
     "douyin_path": "D:\\Program Files (x86)\\ByteDance\\douyin\\Douyin.exe",
     "coords": {
-        "private_msg_icon": [3231, 103],
-        "first_friend": [3349, 298],
-        "second_friend": [3349, 400],
-        "input_box": [3139, 1141],
-        "close_chat": [3381, 199],
-        "friend_height": 102
+        "private_msg_icon": [
+            3229,
+            106
+        ],
+        "first_friend": [
+            3335,
+            301
+        ],
+        "second_friend": [
+            3341,
+            389
+        ],
+        "input_box": [
+            3138,
+            1152
+        ],
+        "close_chat": [
+            3374,
+            195
+        ],
+        "friend_height": 88
     }
 }
