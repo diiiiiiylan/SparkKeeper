@@ -1,95 +1,91 @@
 # SparkKeeper 🔥
 
-抖音 Windows 客户端自动续火花。每天定时给置顶好友发消息，保持火花不灭。
+自动续火花工具，支持抖音、微信等多个 App。可视化界面，一键校准，定时执行。
 
 ## 一键使用
 
-1. 安装 [Python 3.8+](https://www.python.org/downloads/)（安装时勾选 Add to PATH）
+1. 安装 [Python 3.8+](https://www.python.org/downloads/)（勾选 Add to PATH）
 2. 下载本项目
 3. 双击 `start.bat`
 
-完事。首次运行会自动安装依赖并引导你校准。
+## 界面预览
 
-## 手动使用
-
-```bash
-pip install pyautogui pywinauto pyperclip apscheduler
-python douyin_spark.py --setup       # 首次校准（只需一次）
-python douyin_spark.py --now         # 立即测试
-python douyin_spark.py               # 启动定时任务
-python douyin_spark.py --stats       # 查看火花统计
-python douyin_spark.py --autostart   # 设置开机自启
+```
+┌──────────┬─────────────────────────────────┐
+│ 应用列表  │ 🔥 抖音续火花                     │
+│          │ 每天自动给置顶好友发消息续火花        │
+│ 🔥 抖音   │                                  │
+│ 💬 微信   │ 好友数量: [6]                     │
+│          │ 消息池:   [🔥,早安,续火花啦]         │
+│          │ 随机发送: [✓]                      │
+│          │ 发送时间: [08:00]                  │
+│          │                                  │
+│          │ [🎯校准] [▶执行] [⏰定时] [💾保存]  │
+│          │                                  │
+│          │ [日志输出区域]                      │
+│          │                                  │
+│          │ ✅已校准 | 连续15天 | 🔥🔥🔥🔥🔥    │
+└──────────┴─────────────────────────────────┘
 ```
 
 ## 功能
 
-### 🎲 随机消息池
-每次给每个好友发不同的消息，不会被发现是机器人。
-在 `config.json` 中自定义消息池：
-```json
-"messages": ["🔥", "早安", "续火花啦", "☀️", "今天也要开心", "👋"],
-"use_random_message": true
+- **可视化界面** — 不用敲命令，所有操作点点就行
+- **多 App 支持** — 插件化架构，抖音/微信/更多 App
+- **一键校准** — 按 F8 标记位置，自动保存坐标
+- **随机消息池** — 每个好友发不同消息
+- **定时执行** — 设好时间自动跑
+- **火花统计** — 连续打卡天数、14天日历
+- **失败通知** — Windows 系统通知提醒
+
+## 项目结构
+
+```
+├── app.py              # GUI 主程序（入口）
+├── core/
+│   ├── engine.py       # 通用自动化引擎
+│   ├── scheduler.py    # 定时调度器
+│   └── stats.py        # 统计模块
+├── plugins/
+│   ├── __init__.py     # 插件基类
+│   ├── douyin.py       # 抖音续火花
+│   └── wechat.py       # 微信自动消息
+├── configs/            # 每个 App 的配置（自动生成）
+├── start.bat           # 一键启动
+└── README.md
 ```
 
-### 📊 火花统计 (--stats)
+## 添加新插件
+
+继承 `BasePlugin`，实现几个方法就行：
+
+```python
+from plugins import BasePlugin
+
+class MyPlugin(BasePlugin):
+    name = "我的插件"
+    plugin_id = "my_plugin"
+    icon = "⭐"
+
+    def config_fields(self):
+        return [{"key": "count", "label": "数量", "type": "int", "default": 3}]
+
+    def setup_steps(self):
+        return [{"key": "button", "prompt": "鼠标放到按钮上"}]
+
+    def run(self, log_callback=None):
+        # 你的自动化逻辑
+        pass
 ```
-  🔥 SparkKeeper 火花统计
-  连续打卡: 15 天
-  累计发送: 90 条
-  最近 30 天:
-  🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜
-```
 
-### 🚀 开机自启动 (--autostart)
-一条命令加入 Windows 启动项，开机自动续火花：
-```bash
-python douyin_spark.py --autostart      # 开启
-python douyin_spark.py --no-autostart   # 关闭
-```
-
-### ⏰ 火花倒计时
-快到时间还没续？自动弹 Windows 通知提醒你。
-
-### 😴 休眠补发
-电脑休眠唤醒后，自动检测今天是否错过，错过了立即补发。
-
-### 🪟 窗口置顶
-运行时自动把抖音窗口置顶，防止被其他窗口遮挡导致点击偏移。
-
-### 🔔 失败通知
-发送失败弹 Windows 系统通知，不会让火花悄悄灭掉。
-
-## 校准说明
-
-运行 `--setup` 后按提示操作：
-1. 输入要续几个好友
-2. 把鼠标放到「私信图标」上，按回车
-3. 放到「第1个好友」上，按回车
-4. 放到「第2个好友」上，按回车
-5. 放到「输入框」上，按回车
-6. 放到「关闭会话按钮」上，按回车
-
-坐标保存在 `config.json`，分辨率不变就不用重新校准。
-
-## 配置
-
-编辑 `config.json`：
-
-| 字段 | 说明 | 默认值 |
-|------|------|--------|
-| message | 固定消息（关闭随机时用） | 🔥 |
-| messages | 随机消息池 | ["🔥","早安",...] |
-| use_random_message | 是否随机发送 | true |
-| top_friends_count | 续几个好友 | 6 |
-| send_hour / send_minute | 每天几点发 | 8:00 |
-| douyin_path | 抖音路径（自动检测） | - |
-| coords | 坐标（--setup 生成） | - |
+然后在 `app.py` 的 `ALL_PLUGINS` 列表里加上就行。
 
 ## 注意
 
-- 运行时不要动鼠标
+- 校准时按 **F8** 确认鼠标位置
+- 执行时不要动鼠标
 - 鼠标移到屏幕左上角可紧急中断
-- 换显示器/改分辨率后需重新 `--setup`
+- 换显示器/改分辨率后需重新校准
 
 ## License
 

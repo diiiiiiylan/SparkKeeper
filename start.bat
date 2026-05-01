@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title SparkKeeper - 抖音自动续火花
+title SparkKeeper
 
 echo ========================================
-echo   SparkKeeper - 抖音自动续火花
+echo   SparkKeeper - 自动续火花
 echo ========================================
 echo.
 
@@ -18,29 +18,12 @@ if errorlevel 1 (
 )
 
 :: 安装依赖
-echo [1/3] 正在安装依赖...
+echo 正在检查依赖...
 pip install pyautogui pywinauto pyperclip apscheduler >nul 2>&1
-if errorlevel 1 (
-    echo [错误] 依赖安装失败，请检查网络连接
-    pause
-    exit /b 1
-)
-echo       依赖安装完成
+echo 依赖就绪
 
-:: 检查是否已校准
-if not exist config.json (
-    echo.
-    echo [2/3] 首次使用，需要校准坐标
-    python douyin_spark.py --setup
-) else (
-    echo [2/3] 已有配置，跳过校准
-    echo       如需重新校准: python douyin_spark.py --setup
-)
-
-:: 启动
-echo.
-echo [3/3] 启动定时任务...
-echo.
-python douyin_spark.py
+:: 启动 GUI
+echo 启动中...
+python app.py
 
 pause
